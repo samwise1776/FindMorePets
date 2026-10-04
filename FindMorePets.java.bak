@@ -1,0 +1,3218 @@
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.*;
+import java.util.*;
+import java.util.List;
+import javax.swing.*;
+
+public class FindMorePets extends JFrame {
+
+    static final int WORLD_W = 3600;
+    static final int WORLD_H = 2600;
+
+    static class PetType {
+        final String name;
+        final String rarity;
+        final int value;
+        final Color color;
+
+        PetType(
+                String name,
+                String rarity,
+                int value,
+                Color color
+        ) {
+            this.name = name;
+            this.rarity = rarity;
+            this.value = value;
+            this.color = color;
+        }
+    }
+
+    static class PetEntity {
+        PetType type;
+
+        double x;
+        double y;
+        double phase;
+
+        PetEntity(
+                PetType type,
+                double x,
+                double y,
+                double phase
+        ) {
+            this.type = type;
+            this.x = x;
+            this.y = y;
+            this.phase = phase;
+        }
+    }
+
+    static class Decoration {
+        int x;
+        int y;
+        int type;
+
+        Decoration(
+                int x,
+                int y,
+                int type
+        ) {
+            this.x = x;
+            this.y = y;
+            this.type = type;
+        }
+    }
+
+    static class Upgrade {
+        final String name;
+        final String description;
+        final int baseCost;
+        final int maxLevel;
+
+        int level = 0;
+
+        Upgrade(
+                String name,
+                String description,
+                int baseCost,
+                int maxLevel
+        ) {
+            this.name = name;
+            this.description = description;
+            this.baseCost = baseCost;
+            this.maxLevel = maxLevel;
+        }
+
+        int cost() {
+            return (int) Math.round(
+                    baseCost *
+                    Math.pow(1.65, level)
+            );
+        }
+    }
+
+    final class GamePanel
+            extends JPanel
+            implements
+            ActionListener,
+            KeyListener,
+            MouseListener {
+
+        private final Random random =
+                new Random();
+
+        private final javax.swing.Timer timer =
+                new javax.swing.Timer(
+                        16,
+                        this
+                );
+
+        private final Set<Integer> keys =
+                new HashSet<>();
+
+        private final List<PetEntity> pets =
+                new ArrayList<>();
+
+        private final List<Decoration> decorations =
+                new ArrayList<>();
+
+        private final Map<String, Integer> collection =
+                new LinkedHashMap<>();
+
+
+        // =========================================
+        // PET TYPES
+        // =========================================
+
+        private final PetType[] petTypes = {
+
+                new PetType(
+                        "Cat",
+                        "Common",
+                        5,
+                        new Color(
+                                230,
+                                190,
+                                120
+                        )
+                ),
+
+                new PetType(
+                        "Dog",
+                        "Common",
+                        5,
+                        new Color(
+                                180,
+                                125,
+                                80
+                        )
+                ),
+
+                new PetType(
+                        "Hamster",
+                        "Common",
+                        6,
+                        new Color(
+                                240,
+                                205,
+                                150
+                        )
+                ),
+
+                new PetType(
+                        "Rabbit",
+                        "Uncommon",
+                        15,
+                        new Color(
+                                220,
+                                220,
+                                230
+                        )
+                ),
+
+                new PetType(
+                        "Parrot",
+                        "Uncommon",
+                        20,
+                        new Color(
+                                70,
+                                220,
+                                110
+                        )
+                ),
+
+                new PetType(
+                        "Axolotl",
+                        "Rare",
+                        50,
+                        new Color(
+                                255,
+                                135,
+                                190
+                        )
+                ),
+
+                new PetType(
+                        "Red Panda",
+                        "Rare",
+                        65,
+                        new Color(
+                                210,
+                                75,
+                                45
+                        )
+                ),
+
+                new PetType(
+                        "Cyber Hamster",
+                        "Epic",
+                        150,
+                        new Color(
+                                165,
+                                85,
+                                255
+                        )
+                ),
+
+                new PetType(
+                        "Golden Cat",
+                        "Epic",
+                        200,
+                        new Color(
+                                255,
+                                210,
+                                40
+                        )
+                ),
+
+                new PetType(
+                        "Dragon Puppy",
+                        "Legendary",
+                        500,
+                        new Color(
+                                255,
+                                110,
+                                40
+                        )
+                ),
+
+                new PetType(
+                        "Galaxy Fox",
+                        "Legendary",
+                        750,
+                        new Color(
+                                70,
+                                190,
+                                255
+                        )
+                ),
+
+                new PetType(
+                        "VOID DUCK",
+                        "Mythic",
+                        2000,
+                        new Color(
+                                245,
+                                60,
+                                240
+                        )
+                ),
+
+                new PetType(
+                        "Kernel Goose",
+                        "Mythic",
+                        2500,
+                        new Color(
+                                80,
+                                255,
+                                210
+                        )
+                ),
+
+                new PetType(
+                        "Segfault Ferret",
+                        "???",
+                        10000,
+                        Color.WHITE
+                )
+        };
+
+
+        // =========================================
+        // UPGRADES
+        // =========================================
+
+        private final Upgrade[] upgrades = {
+
+                new Upgrade(
+                        "Run Speed",
+                        "Move faster around the mountain",
+                        80,
+                        12
+                ),
+
+                new Upgrade(
+                        "Lasso Reach",
+                        "Capture pets from farther away",
+                        100,
+                        12
+                ),
+
+                new Upgrade(
+                        "Luck",
+                        "New pets roll better rarities",
+                        140,
+                        15
+                ),
+
+                new Upgrade(
+                        "Coin Value",
+                        "Every pet is worth more coins",
+                        170,
+                        12
+                ),
+
+                new Upgrade(
+                        "Pet Radar",
+                        "Detect pets farther away",
+                        120,
+                        10
+                ),
+
+                new Upgrade(
+                        "Quick Lasso",
+                        "Reduces lasso cooldown",
+                        160,
+                        8
+                ),
+
+                new Upgrade(
+                        "Multi-Lasso",
+                        "Catch extra pets per throw",
+                        350,
+                        5
+                ),
+
+                new Upgrade(
+                        "Pet Population",
+                        "Adds more pets to the mountain",
+                        250,
+                        8
+                ),
+
+                new Upgrade(
+                        "Rare Vision",
+                        "Highlights rare pets",
+                        300,
+                        6
+                ),
+
+                new Upgrade(
+                        "Sprint Power",
+                        "Makes SHIFT sprint stronger",
+                        220,
+                        8
+                ),
+
+                new Upgrade(
+                        "Duplicate Bonus",
+                        "Duplicates give bonus coins",
+                        190,
+                        10
+                ),
+
+                new Upgrade(
+                        "Treasure Sense",
+                        "Chance for bonus coins",
+                        260,
+                        10
+                ),
+
+                new Upgrade(
+                        "Mountain Boots",
+                        "Reduces terrain slowdown",
+                        200,
+                        10
+                )
+        };
+
+
+        // =========================================
+        // PLAYER
+        // =========================================
+
+        private double playerX =
+                WORLD_W / 2.0;
+
+        private double playerY =
+                WORLD_H - 300;
+
+        private double camX = 0;
+        private double camY = 0;
+
+        private long lastFrame =
+                System.nanoTime();
+
+        private long lastLasso = 0;
+
+        private long lassoFlashUntil = 0;
+
+        private double lassoTargetX;
+        private double lassoTargetY;
+
+        private int coins = 0;
+        private int petsFound = 0;
+
+        private boolean shopOpen = false;
+        private boolean collectionOpen = false;
+
+        private String message =
+                "Explore the mountain and find pets!";
+
+        private long messageUntil = 0;
+
+
+        GamePanel() {
+
+            setFocusable(true);
+
+            setBackground(
+                    new Color(
+                            115,
+                            185,
+                            235
+                    )
+            );
+
+            addKeyListener(this);
+            addMouseListener(this);
+
+            generateDecorations();
+            ensurePetPopulation();
+
+            timer.start();
+        }
+
+
+        // =========================================
+        // WORLD GENERATION
+        // =========================================
+
+        private void generateDecorations() {
+
+            Random seeded =
+                    new Random(1776);
+
+            for (
+                    int i = 0;
+                    i < 500;
+                    i++
+            ) {
+
+                int x =
+                        40 +
+                        seeded.nextInt(
+                                WORLD_W - 80
+                        );
+
+                int y =
+                        40 +
+                        seeded.nextInt(
+                                WORLD_H - 80
+                        );
+
+                int type;
+
+                if (y > 1500) {
+
+                    type =
+                            seeded.nextDouble() < 0.68
+                                    ? 0
+                                    : 1;
+
+                } else if (y > 750) {
+
+                    type =
+                            seeded.nextDouble() < 0.25
+                                    ? 0
+                                    : 1;
+
+                } else {
+
+                    type = 2;
+                }
+
+                decorations.add(
+                        new Decoration(
+                                x,
+                                y,
+                                type
+                        )
+                );
+            }
+        }
+
+
+        // =========================================
+        // PET SPAWNING
+        // =========================================
+
+        private void ensurePetPopulation() {
+
+            int target =
+                    65 +
+                    upgrades[7].level * 10;
+
+            while (
+                    pets.size() < target
+            ) {
+                pets.add(
+                        spawnPet()
+                );
+            }
+        }
+
+
+        private PetEntity spawnPet() {
+
+            PetType type =
+                    rollPetType();
+
+            double x =
+                    70 +
+                    random.nextDouble() *
+                    (WORLD_W - 140);
+
+            double y =
+                    70 +
+                    random.nextDouble() *
+                    (WORLD_H - 140);
+
+            return new PetEntity(
+                    type,
+                    x,
+                    y,
+                    random.nextDouble() *
+                    Math.PI *
+                    2
+            );
+        }
+
+
+        private PetType rollPetType() {
+
+            int luck =
+                    upgrades[2].level;
+
+            int roll =
+                    Math.min(
+                            9999,
+                            random.nextInt(
+                                    10000
+                            ) +
+                            luck * 65
+                    );
+
+            String rarity;
+
+            if (roll >= 9997) {
+                rarity = "???";
+
+            } else if (roll >= 9960) {
+                rarity = "Mythic";
+
+            } else if (roll >= 9820) {
+                rarity = "Legendary";
+
+            } else if (roll >= 9450) {
+                rarity = "Epic";
+
+            } else if (roll >= 8250) {
+                rarity = "Rare";
+
+            } else if (roll >= 5600) {
+                rarity = "Uncommon";
+
+            } else {
+                rarity = "Common";
+            }
+
+            List<PetType> choices =
+                    new ArrayList<>();
+
+            for (
+                    PetType type :
+                    petTypes
+            ) {
+
+                if (
+                        type.rarity.equals(
+                                rarity
+                        )
+                ) {
+                    choices.add(type);
+                }
+            }
+
+            return choices.get(
+                    random.nextInt(
+                            choices.size()
+                    )
+            );
+        }
+
+
+        // =========================================
+        // MOVEMENT
+        // =========================================
+
+        private double movementSpeed() {
+
+            double speed =
+                    210 +
+                    upgrades[0].level * 34;
+
+            if (
+                    keys.contains(
+                            KeyEvent.VK_SHIFT
+                    )
+            ) {
+
+                speed *=
+                        1.35 +
+                        upgrades[9].level *
+                        0.10;
+            }
+
+
+            double terrainFactor;
+
+            if (
+                    playerY < 700
+            ) {
+
+                terrainFactor =
+                        0.62;
+
+            } else if (
+                    playerY < 1450
+            ) {
+
+                terrainFactor =
+                        0.78;
+
+            } else {
+
+                terrainFactor =
+                        1.0;
+            }
+
+
+            double boots =
+                    upgrades[12].level /
+                    (double)
+                    upgrades[12].maxLevel;
+
+            terrainFactor +=
+                    (1.0 - terrainFactor) *
+                    boots;
+
+            return speed *
+                    terrainFactor;
+        }
+
+
+        private double lassoReach() {
+
+            return 105 +
+                    upgrades[1].level *
+                    24;
+        }
+
+
+        private long lassoCooldown() {
+
+            return Math.max(
+                    120,
+                    650 -
+                    upgrades[5].level *
+                    65L
+            );
+        }
+
+
+        // =========================================
+        // GAME UPDATE
+        // =========================================
+
+        private void updateGame(
+                double dt
+        ) {
+
+            if (
+                    !shopOpen &&
+                    !collectionOpen
+            ) {
+
+                double dx = 0;
+                double dy = 0;
+
+                if (
+                        keys.contains(KeyEvent.VK_W) ||
+                        keys.contains(KeyEvent.VK_UP)
+                ) {
+                    dy--;
+                }
+
+                if (
+                        keys.contains(KeyEvent.VK_S) ||
+                        keys.contains(KeyEvent.VK_DOWN)
+                ) {
+                    dy++;
+                }
+
+                if (
+                        keys.contains(KeyEvent.VK_A) ||
+                        keys.contains(KeyEvent.VK_LEFT)
+                ) {
+                    dx--;
+                }
+
+                if (
+                        keys.contains(KeyEvent.VK_D) ||
+                        keys.contains(KeyEvent.VK_RIGHT)
+                ) {
+                    dx++;
+                }
+
+
+                if (
+                        dx != 0 ||
+                        dy != 0
+                ) {
+
+                    double len =
+                            Math.hypot(
+                                    dx,
+                                    dy
+                            );
+
+                    double speed =
+                            movementSpeed();
+
+                    playerX +=
+                            (dx / len) *
+                            speed *
+                            dt;
+
+                    playerY +=
+                            (dy / len) *
+                            speed *
+                            dt;
+                }
+
+
+                playerX =
+                        clamp(
+                                playerX,
+                                20,
+                                WORLD_W - 20
+                        );
+
+                playerY =
+                        clamp(
+                                playerY,
+                                20,
+                                WORLD_H - 20
+                        );
+            }
+
+
+            double targetCamX =
+                    playerX -
+                    getWidth() /
+                    2.0;
+
+            double targetCamY =
+                    playerY -
+                    getHeight() /
+                    2.0;
+
+
+            camX +=
+                    (
+                            targetCamX -
+                            camX
+                    ) *
+                    Math.min(
+                            1,
+                            dt * 7
+                    );
+
+            camY +=
+                    (
+                            targetCamY -
+                            camY
+                    ) *
+                    Math.min(
+                            1,
+                            dt * 7
+                    );
+
+
+            camX =
+                    clamp(
+                            camX,
+                            0,
+                            Math.max(
+                                    0,
+                                    WORLD_W -
+                                    getWidth()
+                            )
+                    );
+
+            camY =
+                    clamp(
+                            camY,
+                            0,
+                            Math.max(
+                                    0,
+                                    WORLD_H -
+                                    getHeight()
+                            )
+                    );
+
+
+            ensurePetPopulation();
+        }
+
+
+        private double clamp(
+                double value,
+                double min,
+                double max
+        ) {
+
+            return Math.max(
+                    min,
+                    Math.min(
+                            max,
+                            value
+                    )
+            );
+        }
+
+
+        // =========================================
+        // LASSO
+        // =========================================
+
+        private void throwLasso() {
+
+            if (
+                    shopOpen ||
+                    collectionOpen
+            ) {
+                return;
+            }
+
+
+            long now =
+                    System.currentTimeMillis();
+
+
+            if (
+                    now -
+                    lastLasso <
+                    lassoCooldown()
+            ) {
+                return;
+            }
+
+
+            lastLasso =
+                    now;
+
+
+            double reach =
+                    lassoReach();
+
+
+            List<PetEntity> inRange =
+                    new ArrayList<>();
+
+
+            for (
+                    PetEntity pet :
+                    pets
+            ) {
+
+                if (
+                        Point2D.distance(
+                                playerX,
+                                playerY,
+                                pet.x,
+                                pet.y
+                        ) <= reach
+                ) {
+
+                    inRange.add(
+                            pet
+                    );
+                }
+            }
+
+
+            inRange.sort(
+                    Comparator.comparingDouble(
+                            pet ->
+                                    Point2D.distance(
+                                            playerX,
+                                            playerY,
+                                            pet.x,
+                                            pet.y
+                                    )
+                    )
+            );
+
+
+            if (
+                    inRange.isEmpty()
+            ) {
+
+                message =
+                        "Lasso missed! Get closer.";
+
+                messageUntil =
+                        now + 1200;
+
+                lassoTargetX =
+                        playerX;
+
+                lassoTargetY =
+                        playerY -
+                        reach;
+
+                lassoFlashUntil =
+                        now + 180;
+
+                return;
+            }
+
+
+            int maxCatch =
+                    1 +
+                    upgrades[6].level;
+
+            int count =
+                    Math.min(
+                            maxCatch,
+                            inRange.size()
+                    );
+
+            int earned = 0;
+
+            String firstName =
+                    inRange.get(0)
+                            .type
+                            .name;
+
+
+            for (
+                    int i = 0;
+                    i < count;
+                    i++
+            ) {
+
+                PetEntity pet =
+                        inRange.get(i);
+
+                if (i == 0) {
+
+                    lassoTargetX =
+                            pet.x;
+
+                    lassoTargetY =
+                            pet.y;
+                }
+
+                earned +=
+                        capturePet(
+                                pet
+                        );
+            }
+
+
+            lassoFlashUntil =
+                    now + 220;
+
+
+            if (count == 1) {
+
+                message =
+                        "Caught " +
+                        firstName +
+                        "! +" +
+                        earned +
+                        " coins";
+
+            } else {
+
+                message =
+                        "Multi-catch x" +
+                        count +
+                        "! +" +
+                        earned +
+                        " coins";
+            }
+
+
+            messageUntil =
+                    now + 1700;
+        }
+
+
+        // =========================================
+        // CAPTURE
+        // =========================================
+
+        private int capturePet(
+                PetEntity pet
+        ) {
+
+            boolean duplicate =
+                    collection.containsKey(
+                            pet.type.name
+                    );
+
+
+            collection.put(
+                    pet.type.name,
+
+                    collection.getOrDefault(
+                            pet.type.name,
+                            0
+                    ) + 1
+            );
+
+
+            petsFound++;
+
+
+            double multiplier =
+                    1.0 +
+                    upgrades[3].level *
+                    0.15;
+
+
+            if (duplicate) {
+
+                multiplier +=
+                        upgrades[10].level *
+                        0.10;
+            }
+
+
+            int earned =
+                    Math.max(
+                            1,
+
+                            (int)
+                            Math.round(
+                                    pet.type.value *
+                                    multiplier
+                            )
+                    );
+
+
+            if (
+                    upgrades[11].level > 0
+            ) {
+
+                double chance =
+                        upgrades[11].level *
+                        0.055;
+
+
+                if (
+                        random.nextDouble() <
+                        chance
+                ) {
+
+                    earned +=
+                            20 +
+                            upgrades[11].level *
+                            35;
+                }
+            }
+
+
+            coins +=
+                    earned;
+
+
+            pets.remove(
+                    pet
+            );
+
+
+            return earned;
+        }
+
+
+        // =========================================
+        // BUY UPGRADES
+        // =========================================
+
+        private void buyUpgrade(
+                int index
+        ) {
+
+            if (
+                    index < 0 ||
+                    index >= upgrades.length
+            ) {
+                return;
+            }
+
+
+            Upgrade upgrade =
+                    upgrades[index];
+
+
+            if (
+                    upgrade.level >=
+                    upgrade.maxLevel
+            ) {
+
+                message =
+                        upgrade.name +
+                        " is MAX level.";
+
+                messageUntil =
+                        System.currentTimeMillis() +
+                        1200;
+
+                return;
+            }
+
+
+            int cost =
+                    upgrade.cost();
+
+
+            if (
+                    coins < cost
+            ) {
+
+                message =
+                        "Need " +
+                        cost +
+                        " coins for " +
+                        upgrade.name;
+
+                messageUntil =
+                        System.currentTimeMillis() +
+                        1200;
+
+                return;
+            }
+
+
+            coins -= cost;
+
+            upgrade.level++;
+
+
+            ensurePetPopulation();
+
+
+            message =
+                    upgrade.name +
+                    " upgraded to Lv." +
+                    upgrade.level;
+
+
+            messageUntil =
+                    System.currentTimeMillis() +
+                    1400;
+        }
+
+
+        // =========================================
+        // GRAPHICS
+        // =========================================
+
+        @Override
+        protected void paintComponent(
+                Graphics graphics
+        ) {
+
+            super.paintComponent(
+                    graphics
+            );
+
+
+            Graphics2D g2 =
+                    (Graphics2D)
+                    graphics.create();
+
+
+            g2.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
+            );
+
+
+            drawWorld(g2);
+            drawPets(g2);
+            drawPlayer(g2);
+            drawHUD(g2);
+
+
+            if (shopOpen) {
+                drawShop(g2);
+            }
+
+
+            if (collectionOpen) {
+                drawCollection(g2);
+            }
+
+
+            g2.dispose();
+        }
+
+
+        // =========================================
+        // MOUNTAIN
+        // =========================================
+
+        private void drawWorld(
+                Graphics2D g2
+        ) {
+
+            g2.setColor(
+                    new Color(
+                            115,
+                            185,
+                            235
+                    )
+            );
+
+            g2.fillRect(
+                    0,
+                    0,
+                    getWidth(),
+                    getHeight()
+            );
+
+
+            AffineTransform old =
+                    g2.getTransform();
+
+
+            g2.translate(
+                    -camX,
+                    -camY
+            );
+
+
+            // Snow
+            g2.setColor(
+                    new Color(
+                            225,
+                            238,
+                            245
+                    )
+            );
+
+            g2.fillRect(
+                    0,
+                    0,
+                    WORLD_W,
+                    700
+            );
+
+
+            // Rock
+            g2.setColor(
+                    new Color(
+                            125,
+                            125,
+                            125
+                    )
+            );
+
+            g2.fillRect(
+                    0,
+                    700,
+                    WORLD_W,
+                    750
+            );
+
+
+            // Grass
+            g2.setColor(
+                    new Color(
+                            90,
+                            145,
+                            82
+                    )
+            );
+
+            g2.fillRect(
+                    0,
+                    1450,
+                    WORLD_W,
+                    WORLD_H - 1450
+            );
+
+
+            // Jagged snow edge
+            g2.setColor(
+                    new Color(
+                            195,
+                            210,
+                            220
+                    )
+            );
+
+
+            g2.fillPolygon(
+                    new int[]{
+                            0,
+                            450,
+                            850,
+                            1250,
+                            1650,
+                            2100,
+                            2550,
+                            3000,
+                            3600,
+                            3600,
+                            0
+                    },
+
+                    new int[]{
+                            690,
+                            620,
+                            700,
+                            610,
+                            710,
+                            620,
+                            700,
+                            630,
+                            690,
+                            760,
+                            760
+                    },
+
+                    11
+            );
+
+
+            // Winding mountain trail
+            g2.setStroke(
+                    new BasicStroke(
+                            52,
+                            BasicStroke.CAP_ROUND,
+                            BasicStroke.JOIN_ROUND
+                    )
+            );
+
+
+            g2.setColor(
+                    new Color(
+                            178,
+                            154,
+                            115
+                    )
+            );
+
+
+            Path2D trail =
+                    new Path2D.Double();
+
+
+            trail.moveTo(
+                    1800,
+                    2550
+            );
+
+
+            trail.curveTo(
+                    1300,
+                    2200,
+
+                    2400,
+                    1850,
+
+                    1750,
+                    1500
+            );
+
+
+            trail.curveTo(
+                    1100,
+                    1180,
+
+                    2450,
+                    900,
+
+                    1800,
+                    520
+            );
+
+
+            trail.curveTo(
+                    1550,
+                    390,
+
+                    1800,
+                    220,
+
+                    1800,
+                    80
+            );
+
+
+            g2.draw(
+                    trail
+            );
+
+
+            // Decorations
+            for (
+                    Decoration decoration :
+                    decorations
+            ) {
+
+                if (
+                        !visible(
+                                decoration.x,
+                                decoration.y,
+                                60
+                        )
+                ) {
+                    continue;
+                }
+
+
+                if (
+                        decoration.type == 0
+                ) {
+
+                    drawTree(
+                            g2,
+                            decoration.x,
+                            decoration.y
+                    );
+
+                } else if (
+                        decoration.type == 1
+                ) {
+
+                    drawRock(
+                            g2,
+                            decoration.x,
+                            decoration.y,
+                            false
+                    );
+
+                } else {
+
+                    drawRock(
+                            g2,
+                            decoration.x,
+                            decoration.y,
+                            true
+                    );
+                }
+            }
+
+
+            g2.setColor(
+                    new Color(
+                            45,
+                            60,
+                            45,
+                            180
+                    )
+            );
+
+
+            g2.setStroke(
+                    new BasicStroke(10)
+            );
+
+
+            g2.drawRect(
+                    5,
+                    5,
+                    WORLD_W - 10,
+                    WORLD_H - 10
+            );
+
+
+            g2.setTransform(
+                    old
+            );
+        }
+
+
+        private boolean visible(
+                double x,
+                double y,
+                double margin
+        ) {
+
+            return
+                    x >= camX - margin &&
+                    x <= camX +
+                         getWidth() +
+                         margin &&
+
+                    y >= camY - margin &&
+                    y <= camY +
+                         getHeight() +
+                         margin;
+        }
+
+
+        private void drawTree(
+                Graphics2D g2,
+                int x,
+                int y
+        ) {
+
+            g2.setColor(
+                    new Color(
+                            100,
+                            70,
+                            40
+                    )
+            );
+
+
+            g2.fillRoundRect(
+                    x - 5,
+                    y - 2,
+                    10,
+                    28,
+                    4,
+                    4
+            );
+
+
+            g2.setColor(
+                    new Color(
+                            40,
+                            105,
+                            55
+                    )
+            );
+
+
+            g2.fillOval(
+                    x - 22,
+                    y - 32,
+                    44,
+                    44
+            );
+
+
+            g2.setColor(
+                    new Color(
+                            55,
+                            130,
+                            65
+                    )
+            );
+
+
+            g2.fillOval(
+                    x - 16,
+                    y - 42,
+                    32,
+                    34
+            );
+        }
+
+
+        private void drawRock(
+                Graphics2D g2,
+                int x,
+                int y,
+                boolean snow
+        ) {
+
+            if (snow) {
+
+                g2.setColor(
+                        new Color(
+                                200,
+                                210,
+                                220
+                        )
+                );
+
+            } else {
+
+                g2.setColor(
+                        new Color(
+                                95,
+                                95,
+                                95
+                        )
+                );
+            }
+
+
+            g2.fillRoundRect(
+                    x - 15,
+                    y - 10,
+                    30,
+                    22,
+                    10,
+                    10
+            );
+
+
+            g2.setColor(
+                    new Color(
+                            255,
+                            255,
+                            255,
+                            90
+                    )
+            );
+
+
+            g2.drawArc(
+                    x - 11,
+                    y - 8,
+                    20,
+                    13,
+                    20,
+                    130
+            );
+        }
+
+
+        // =========================================
+        // PET GRAPHICS
+        // =========================================
+
+        private void drawPets(
+                Graphics2D g2
+        ) {
+
+            AffineTransform old =
+                    g2.getTransform();
+
+
+            g2.translate(
+                    -camX,
+                    -camY
+            );
+
+
+            long now =
+                    System.currentTimeMillis();
+
+
+            for (
+                    PetEntity pet :
+                    pets
+            ) {
+
+                if (
+                        !visible(
+                                pet.x,
+                                pet.y,
+                                80
+                        )
+                ) {
+                    continue;
+                }
+
+
+                double bob =
+                        Math.sin(
+                                now /
+                                260.0 +
+                                pet.phase
+                        ) *
+                        3.0;
+
+
+                int x =
+                        (int)
+                        pet.x;
+
+                int y =
+                        (int)
+                        (
+                                pet.y +
+                                bob
+                        );
+
+
+                boolean rareVision =
+                        upgrades[8].level > 0 &&
+                        rarityRank(
+                                pet.type.rarity
+                        ) >= 2;
+
+
+                if (rareVision) {
+
+                    int radius =
+                            22 +
+                            upgrades[8].level *
+                            2;
+
+
+                    g2.setColor(
+                            new Color(
+                                    pet.type.color.getRed(),
+                                    pet.type.color.getGreen(),
+                                    pet.type.color.getBlue(),
+                                    70
+                            )
+                    );
+
+
+                    g2.fillOval(
+                            x - radius,
+                            y - radius,
+                            radius * 2,
+                            radius * 2
+                    );
+                }
+
+
+                // shadow
+                g2.setColor(
+                        new Color(
+                                0,
+                                0,
+                                0,
+                                70
+                        )
+                );
+
+
+                g2.fillOval(
+                        x - 15,
+                        y + 13,
+                        30,
+                        10
+                );
+
+
+                // body
+                g2.setColor(
+                        pet.type.color
+                );
+
+
+                g2.fillOval(
+                        x - 16,
+                        y - 14,
+                        32,
+                        30
+                );
+
+
+                // head
+                g2.fillOval(
+                        x - 12,
+                        y - 24,
+                        24,
+                        22
+                );
+
+
+                // eyes
+                g2.setColor(
+                        Color.BLACK
+                );
+
+
+                g2.fillOval(
+                        x - 6,
+                        y - 17,
+                        4,
+                        4
+                );
+
+
+                g2.fillOval(
+                        x + 3,
+                        y - 17,
+                        4,
+                        4
+                );
+
+
+                if (
+                        rareVision ||
+                        Point2D.distance(
+                                playerX,
+                                playerY,
+                                pet.x,
+                                pet.y
+                        ) <= 140
+                ) {
+
+                    g2.setFont(
+                            new Font(
+                                    "SansSerif",
+                                    Font.BOLD,
+                                    12
+                            )
+                    );
+
+
+                    String label =
+                            pet.type.name +
+                            " [" +
+                            pet.type.rarity +
+                            "]";
+
+
+                    int textWidth =
+                            g2.getFontMetrics()
+                              .stringWidth(
+                                      label
+                              );
+
+
+                    g2.setColor(
+                            new Color(
+                                    0,
+                                    0,
+                                    0,
+                                    160
+                            )
+                    );
+
+
+                    g2.fillRoundRect(
+                            x -
+                            textWidth / 2 -
+                            5,
+
+                            y - 47,
+
+                            textWidth + 10,
+
+                            18,
+
+                            8,
+
+                            8
+                    );
+
+
+                    g2.setColor(
+                            Color.WHITE
+                    );
+
+
+                    g2.drawString(
+                            label,
+
+                            x -
+                            textWidth / 2,
+
+                            y - 34
+                    );
+                }
+            }
+
+
+            // Lasso reach circle
+            int reach =
+                    (int)
+                    lassoReach();
+
+
+            g2.setColor(
+                    new Color(
+                            255,
+                            240,
+                            120,
+                            70
+                    )
+            );
+
+
+            g2.setStroke(
+                    new BasicStroke(2)
+            );
+
+
+            g2.drawOval(
+                    (int)playerX -
+                    reach,
+
+                    (int)playerY -
+                    reach,
+
+                    reach * 2,
+
+                    reach * 2
+            );
+
+
+            // Rope animation
+            if (
+                    now <
+                    lassoFlashUntil
+            ) {
+
+                g2.setColor(
+                        new Color(
+                                245,
+                                220,
+                                135
+                        )
+                );
+
+
+                g2.setStroke(
+                        new BasicStroke(
+                                4,
+                                BasicStroke.CAP_ROUND,
+                                BasicStroke.JOIN_ROUND
+                        )
+                );
+
+
+                g2.drawLine(
+                        (int)playerX,
+                        (int)playerY,
+
+                        (int)lassoTargetX,
+                        (int)lassoTargetY
+                );
+
+
+                g2.drawOval(
+                        (int)lassoTargetX -
+                        18,
+
+                        (int)lassoTargetY -
+                        18,
+
+                        36,
+                        36
+                );
+            }
+
+
+            g2.setTransform(
+                    old
+            );
+        }
+
+
+        private int rarityRank(
+                String rarity
+        ) {
+
+            switch (rarity) {
+
+                case "Uncommon":
+                    return 1;
+
+                case "Rare":
+                    return 2;
+
+                case "Epic":
+                    return 3;
+
+                case "Legendary":
+                    return 4;
+
+                case "Mythic":
+                    return 5;
+
+                case "???":
+                    return 6;
+
+                default:
+                    return 0;
+            }
+        }
+
+
+        // =========================================
+        // PLAYER GRAPHICS
+        // =========================================
+
+        private void drawPlayer(
+                Graphics2D g2
+        ) {
+
+            int x =
+                    (int)
+                    (
+                            playerX -
+                            camX
+                    );
+
+            int y =
+                    (int)
+                    (
+                            playerY -
+                            camY
+                    );
+
+
+            // shadow
+            g2.setColor(
+                    new Color(
+                            0,
+                            0,
+                            0,
+                            80
+                    )
+            );
+
+
+            g2.fillOval(
+                    x - 14,
+                    y + 15,
+                    28,
+                    10
+            );
+
+
+            // body
+            g2.setColor(
+                    new Color(
+                            45,
+                            95,
+                            220
+                    )
+            );
+
+
+            g2.fillRoundRect(
+                    x - 11,
+                    y - 4,
+                    22,
+                    26,
+                    9,
+                    9
+            );
+
+
+            // head
+            g2.setColor(
+                    new Color(
+                            235,
+                            195,
+                            155
+                    )
+            );
+
+
+            g2.fillOval(
+                    x - 10,
+                    y - 20,
+                    20,
+                    20
+            );
+
+
+            // hair
+            g2.setColor(
+                    new Color(
+                            80,
+                            45,
+                            25
+                    )
+            );
+
+
+            g2.fillArc(
+                    x - 11,
+                    y - 23,
+                    22,
+                    16,
+                    0,
+                    180
+            );
+
+
+            // lasso
+            g2.setColor(
+                    new Color(
+                            230,
+                            205,
+                            130
+                    )
+            );
+
+
+            g2.setStroke(
+                    new BasicStroke(3)
+            );
+
+
+            g2.drawOval(
+                    x + 8,
+                    y + 1,
+                    13,
+                    13
+            );
+        }
+
+
+        // =========================================
+        // HUD
+        // =========================================
+
+        private void drawHUD(
+                Graphics2D g2
+        ) {
+
+            g2.setFont(
+                    new Font(
+                            "SansSerif",
+                            Font.BOLD,
+                            16
+                    )
+            );
+
+
+            g2.setColor(
+                    new Color(
+                            15,
+                            18,
+                            25,
+                            210
+                    )
+            );
+
+
+            g2.fillRoundRect(
+                    15,
+                    15,
+                    340,
+                    125,
+                    18,
+                    18
+            );
+
+
+            g2.setColor(
+                    Color.WHITE
+            );
+
+
+            g2.drawString(
+                    "Find More Pets",
+                    30,
+                    42
+            );
+
+
+            g2.drawString(
+                    "Coins: " +
+                    coins,
+
+                    30,
+                    67
+            );
+
+
+            g2.drawString(
+                    "Pets Found: " +
+                    petsFound +
+                    "   Species: " +
+                    collection.size() +
+                    "/" +
+                    petTypes.length,
+
+                    30,
+                    91
+            );
+
+
+            g2.setFont(
+                    new Font(
+                            "SansSerif",
+                            Font.PLAIN,
+                            13
+                    )
+            );
+
+
+            g2.drawString(
+                    "WASD/Arrows move | SHIFT sprint | SPACE lasso",
+                    30,
+                    116
+            );
+
+
+            g2.drawString(
+                    "U upgrades | I collection",
+                    30,
+                    134
+            );
+
+
+            drawMiniMap(
+                    g2
+            );
+
+
+            if (
+                    System.currentTimeMillis() <
+                    messageUntil ||
+
+                    petsFound == 0
+            ) {
+
+                g2.setFont(
+                        new Font(
+                                "SansSerif",
+                                Font.BOLD,
+                                15
+                        )
+                );
+
+
+                int width =
+                        g2.getFontMetrics()
+                          .stringWidth(
+                                  message
+                          ) +
+                        28;
+
+
+                int x =
+                        (
+                                getWidth() -
+                                width
+                        ) /
+                        2;
+
+
+                g2.setColor(
+                        new Color(
+                                10,
+                                10,
+                                15,
+                                205
+                        )
+                );
+
+
+                g2.fillRoundRect(
+                        x,
+                        getHeight() - 62,
+
+                        width,
+                        38,
+
+                        18,
+                        18
+                );
+
+
+                g2.setColor(
+                        Color.WHITE
+                );
+
+
+                g2.drawString(
+                        message,
+
+                        x + 14,
+                        getHeight() - 37
+                );
+            }
+        }
+
+
+        // =========================================
+        // MINIMAP
+        // =========================================
+
+        private void drawMiniMap(
+                Graphics2D g2
+        ) {
+
+            int width = 190;
+            int height = 135;
+
+            int x =
+                    getWidth() -
+                    width -
+                    18;
+
+            int y = 18;
+
+
+            g2.setColor(
+                    new Color(
+                            10,
+                            15,
+                            20,
+                            210
+                    )
+            );
+
+
+            g2.fillRoundRect(
+                    x,
+                    y,
+                    width,
+                    height,
+                    16,
+                    16
+            );
+
+
+            g2.setColor(
+                    new Color(
+                            90,
+                            145,
+                            82
+                    )
+            );
+
+
+            g2.fillRect(
+                    x + 10,
+                    y + 10,
+                    width - 20,
+                    height - 20
+            );
+
+
+            double sx =
+                    (width - 20.0) /
+                    WORLD_W;
+
+            double sy =
+                    (height - 20.0) /
+                    WORLD_H;
+
+
+            int radarLevel =
+                    upgrades[4].level;
+
+
+            if (
+                    radarLevel > 0
+            ) {
+
+                double radarRange =
+                        320 +
+                        radarLevel *
+                        170;
+
+
+                for (
+                        PetEntity pet :
+                        pets
+                ) {
+
+                    if (
+                            Point2D.distance(
+                                    playerX,
+                                    playerY,
+                                    pet.x,
+                                    pet.y
+                            ) <= radarRange
+                    ) {
+
+                        int px =
+                                x +
+                                10 +
+                                (int)
+                                (
+                                        pet.x *
+                                        sx
+                                );
+
+                        int py =
+                                y +
+                                10 +
+                                (int)
+                                (
+                                        pet.y *
+                                        sy
+                                );
+
+
+                        g2.setColor(
+                                pet.type.color
+                        );
+
+
+                        g2.fillOval(
+                                px - 2,
+                                py - 2,
+                                5,
+                                5
+                        );
+                    }
+                }
+            }
+
+
+            int px =
+                    x +
+                    10 +
+                    (int)
+                    (
+                            playerX *
+                            sx
+                    );
+
+            int py =
+                    y +
+                    10 +
+                    (int)
+                    (
+                            playerY *
+                            sy
+                    );
+
+
+            g2.setColor(
+                    Color.WHITE
+            );
+
+
+            g2.fillOval(
+                    px - 4,
+                    py - 4,
+                    8,
+                    8
+            );
+        }
+
+
+        // =========================================
+        // UPGRADE SHOP
+        // =========================================
+
+        private void drawShop(
+                Graphics2D g2
+        ) {
+
+            g2.setColor(
+                    new Color(
+                            0,
+                            0,
+                            0,
+                            175
+                    )
+            );
+
+
+            g2.fillRect(
+                    0,
+                    0,
+                    getWidth(),
+                    getHeight()
+            );
+
+
+            int width = 760;
+            int height = 690;
+
+            int x =
+                    (
+                            getWidth() -
+                            width
+                    ) /
+                    2;
+
+            int y =
+                    (
+                            getHeight() -
+                            height
+                    ) /
+                    2;
+
+
+            g2.setColor(
+                    new Color(
+                            28,
+                            31,
+                            38
+                    )
+            );
+
+
+            g2.fillRoundRect(
+                    x,
+                    y,
+                    width,
+                    height,
+                    24,
+                    24
+            );
+
+
+            g2.setColor(
+                    Color.WHITE
+            );
+
+
+            g2.setFont(
+                    new Font(
+                            "SansSerif",
+                            Font.BOLD,
+                            28
+                    )
+            );
+
+
+            g2.drawString(
+                    "Mountain Upgrades",
+                    x + 26,
+                    y + 40
+            );
+
+
+            g2.setFont(
+                    new Font(
+                            "SansSerif",
+                            Font.PLAIN,
+                            14
+                    )
+            );
+
+
+            g2.drawString(
+                    "Coins: " +
+                    coins +
+                    "   •   Click an upgrade   •   U to close",
+
+                    x + 28,
+                    y + 64
+            );
+
+
+            for (
+                    int i = 0;
+                    i < upgrades.length;
+                    i++
+            ) {
+
+                Upgrade upgrade =
+                        upgrades[i];
+
+
+                Rectangle rectangle =
+                        shopRect(i);
+
+
+                boolean hover =
+                        rectangle.contains(
+                                getMousePositionSafe()
+                        );
+
+
+                g2.setColor(
+                        hover
+
+                                ? new Color(
+                                        57,
+                                        65,
+                                        82
+                                )
+
+                                : new Color(
+                                        42,
+                                        47,
+                                        58
+                                )
+                );
+
+
+                g2.fillRoundRect(
+                        rectangle.x,
+                        rectangle.y,
+                        rectangle.width,
+                        rectangle.height,
+                        14,
+                        14
+                );
+
+
+                g2.setColor(
+                        Color.WHITE
+                );
+
+
+                g2.setFont(
+                        new Font(
+                                "SansSerif",
+                                Font.BOLD,
+                                15
+                        )
+                );
+
+
+                g2.drawString(
+                        (i + 1) +
+                        ". " +
+                        upgrade.name +
+                        "  Lv." +
+                        upgrade.level +
+                        "/" +
+                        upgrade.maxLevel,
+
+                        rectangle.x + 14,
+                        rectangle.y + 20
+                );
+
+
+                g2.setFont(
+                        new Font(
+                                "SansSerif",
+                                Font.PLAIN,
+                                12
+                        )
+                );
+
+
+                g2.setColor(
+                        new Color(
+                                200,
+                                205,
+                                215
+                        )
+                );
+
+
+                g2.drawString(
+                        upgrade.description,
+
+                        rectangle.x + 14,
+                        rectangle.y + 38
+                );
+
+
+                String costText =
+
+                        upgrade.level >=
+                        upgrade.maxLevel
+
+                                ? "MAX"
+
+                                : upgrade.cost() +
+                                  " coins";
+
+
+                g2.setFont(
+                        new Font(
+                                "SansSerif",
+                                Font.BOLD,
+                                13
+                        )
+                );
+
+
+                g2.setColor(
+
+                        upgrade.level >=
+                        upgrade.maxLevel
+
+                                ? new Color(
+                                        100,
+                                        240,
+                                        150
+                                )
+
+                                : new Color(
+                                        255,
+                                        220,
+                                        95
+                                )
+                );
+
+
+                int textWidth =
+                        g2.getFontMetrics()
+                          .stringWidth(
+                                  costText
+                          );
+
+
+                g2.drawString(
+                        costText,
+
+                        rectangle.x +
+                        rectangle.width -
+                        textWidth -
+                        14,
+
+                        rectangle.y +
+                        28
+                );
+            }
+        }
+
+
+        private Rectangle shopRect(
+                int index
+        ) {
+
+            int width = 760;
+            int height = 690;
+
+            int x =
+                    (
+                            getWidth() -
+                            width
+                    ) /
+                    2;
+
+            int y =
+                    (
+                            getHeight() -
+                            height
+                    ) /
+                    2;
+
+
+            return new Rectangle(
+                    x + 24,
+                    y + 78 +
+                    index * 45,
+
+                    width - 48,
+                    41
+            );
+        }
+
+
+        private Point getMousePositionSafe() {
+
+            Point point =
+                    getMousePosition();
+
+
+            if (
+                    point == null
+            ) {
+
+                return new Point(
+                        -9999,
+                        -9999
+                );
+            }
+
+
+            return point;
+        }
+
+
+        // =========================================
+        // COLLECTION
+        // =========================================
+
+        private void drawCollection(
+                Graphics2D g2
+        ) {
+
+            g2.setColor(
+                    new Color(
+                            0,
+                            0,
+                            0,
+                            175
+                    )
+            );
+
+
+            g2.fillRect(
+                    0,
+                    0,
+                    getWidth(),
+                    getHeight()
+            );
+
+
+            int width = 620;
+            int height = 600;
+
+
+            int x =
+                    (
+                            getWidth() -
+                            width
+                    ) /
+                    2;
+
+
+            int y =
+                    (
+                            getHeight() -
+                            height
+                    ) /
+                    2;
+
+
+            g2.setColor(
+                    new Color(
+                            28,
+                            31,
+                            38
+                    )
+            );
+
+
+            g2.fillRoundRect(
+                    x,
+                    y,
+                    width,
+                    height,
+                    24,
+                    24
+            );
+
+
+            g2.setColor(
+                    Color.WHITE
+            );
+
+
+            g2.setFont(
+                    new Font(
+                            "SansSerif",
+                            Font.BOLD,
+                            28
+                    )
+            );
+
+
+            g2.drawString(
+                    "Pet Collection",
+                    x + 28,
+                    y + 42
+            );
+
+
+            g2.setFont(
+                    new Font(
+                            "SansSerif",
+                            Font.PLAIN,
+                            13
+                    )
+            );
+
+
+            g2.drawString(
+                    "I to close",
+                    x + 28,
+                    y + 64
+            );
+
+
+            int yy =
+                    y + 95;
+
+
+            for (
+                    PetType type :
+                    petTypes
+            ) {
+
+                int count =
+                        collection.getOrDefault(
+                                type.name,
+                                0
+                        );
+
+
+                g2.setColor(
+                        type.color
+                );
+
+
+                g2.fillOval(
+                        x + 30,
+                        yy - 12,
+                        18,
+                        18
+                );
+
+
+                g2.setColor(
+                        Color.WHITE
+                );
+
+
+                g2.setFont(
+                        new Font(
+                                "SansSerif",
+                                Font.BOLD,
+                                14
+                        )
+                );
+
+
+                String name =
+
+                        count > 0
+
+                                ? type.name
+
+                                : "???";
+
+
+                g2.drawString(
+                        name,
+                        x + 60,
+                        yy + 2
+                );
+
+
+                g2.setFont(
+                        new Font(
+                                "SansSerif",
+                                Font.PLAIN,
+                                13
+                        )
+                );
+
+
+                g2.setColor(
+                        new Color(
+                                190,
+                                195,
+                                205
+                        )
+                );
+
+
+                g2.drawString(
+                        type.rarity +
+                        "   x" +
+                        count,
+
+                        x + 300,
+                        yy + 2
+                );
+
+
+                yy += 34;
+            }
+        }
+
+
+        // =========================================
+        // LOOP
+        // =========================================
+
+        @Override
+        public void actionPerformed(
+                ActionEvent event
+        ) {
+
+            long now =
+                    System.nanoTime();
+
+
+            double dt =
+                    Math.min(
+                            0.05,
+
+                            (
+                                    now -
+                                    lastFrame
+                            ) /
+                            1_000_000_000.0
+                    );
+
+
+            lastFrame =
+                    now;
+
+
+            updateGame(
+                    dt
+            );
+
+
+            repaint();
+        }
+
+
+        // =========================================
+        // KEYBOARD
+        // =========================================
+
+        @Override
+        public void keyPressed(
+                KeyEvent event
+        ) {
+
+            int code =
+                    event.getKeyCode();
+
+
+            keys.add(
+                    code
+            );
+
+
+            if (
+                    code ==
+                    KeyEvent.VK_SPACE
+            ) {
+
+                throwLasso();
+            }
+
+
+            if (
+                    code ==
+                    KeyEvent.VK_U
+            ) {
+
+                shopOpen =
+                        !shopOpen;
+
+                collectionOpen =
+                        false;
+            }
+
+
+            if (
+                    code ==
+                    KeyEvent.VK_I
+            ) {
+
+                collectionOpen =
+                        !collectionOpen;
+
+                shopOpen =
+                        false;
+            }
+
+
+            if (
+                    code ==
+                    KeyEvent.VK_ESCAPE
+            ) {
+
+                shopOpen = false;
+                collectionOpen = false;
+            }
+        }
+
+
+        @Override
+        public void keyReleased(
+                KeyEvent event
+        ) {
+
+            keys.remove(
+                    event.getKeyCode()
+            );
+        }
+
+
+        @Override
+        public void keyTyped(
+                KeyEvent event
+        ) {}
+
+
+        // =========================================
+        // MOUSE
+        // =========================================
+
+        @Override
+        public void mouseClicked(
+                MouseEvent event
+        ) {
+
+            requestFocusInWindow();
+
+
+            if (shopOpen) {
+
+                for (
+                        int i = 0;
+                        i < upgrades.length;
+                        i++
+                ) {
+
+                    if (
+                            shopRect(i)
+                                    .contains(
+                                            event.getPoint()
+                                    )
+                    ) {
+
+                        buyUpgrade(
+                                i
+                        );
+
+                        return;
+                    }
+                }
+
+            } else if (
+                    !collectionOpen &&
+                    SwingUtilities.isLeftMouseButton(
+                            event
+                    )
+            ) {
+
+                throwLasso();
+            }
+        }
+
+
+        @Override
+        public void mousePressed(
+                MouseEvent event
+        ) {}
+
+
+        @Override
+        public void mouseReleased(
+                MouseEvent event
+        ) {}
+
+
+        @Override
+        public void mouseEntered(
+                MouseEvent event
+        ) {
+
+            requestFocusInWindow();
+        }
+
+
+        @Override
+        public void mouseExited(
+                MouseEvent event
+        ) {}
+    }
+
+
+    // =============================================
+    // WINDOW
+    // =============================================
+
+    public FindMorePets() {
+
+        setTitle(
+                "Find More Pets - Mountain Adventure"
+        );
+
+
+        setDefaultCloseOperation(
+                EXIT_ON_CLOSE
+        );
+
+
+        setSize(
+                1280,
+                820
+        );
+
+
+        setMinimumSize(
+                new Dimension(
+                        960,
+                        700
+                )
+        );
+
+
+        setLocationRelativeTo(
+                null
+        );
+
+
+        GamePanel game =
+                new GamePanel();
+
+
+        setContentPane(
+                game
+        );
+
+
+        setVisible(
+                true
+        );
+
+
+        SwingUtilities.invokeLater(
+                game::requestFocusInWindow
+        );
+    }
+
+
+    public static void main(
+            String[] args
+    ) {
+
+        SwingUtilities.invokeLater(
+                FindMorePets::new
+        );
+    }
+}
